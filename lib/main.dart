@@ -4,12 +4,18 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart' as img_pick;
 import 'package:http/http.dart' as http;
-import 'package:pa/result_page.dart';
+
+import '/helper.dart';
+import '/result_page.dart';
 
 final Dio dio = Dio();
-void main() {
+
+void main() async {
+  await dotenv.load(fileName: '.env');
+
   runApp(const MyApp());
 }
 
@@ -55,15 +61,14 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   sendImage() async {
-    if (image == null) return print('Image is empty');
+    if (image == null) {
+      String alert = 'Image is empty';
+      showAlert(context, alert);
 
-    var uri = Uri(
-      scheme: 'http',
-      // host: '13.212.128.108',
-      host: '192.168.1.6',
-      port: 8000,
-      path: 'semaphores/predict',
-    );
+      return;
+    }
+
+    var uri = Uri.parse("${dotenv.get('BASE_API_URL')}/semaphores/predict");
 
     var request = http.MultipartRequest('POST', uri);
     Uint8List data = image!.readAsBytesSync();
@@ -71,38 +76,33 @@ class _MyHomePageState extends State<MyHomePage> {
     request.files.add(
         http.MultipartFile.fromBytes('file', list, filename: 'myFile.png'));
 
-    var response = await request.send();
+    http.StreamedResponse response;
+    try {
+      response = await request.send();
+    } catch (e) {
+      showAlert(context, e.toString());
+      return;
+    }
 
-    print(response);
+    if (response.statusCode != 200) {
+      String alert = await response.stream.bytesToString();
+      showAlert(context, alert);
+      return;
+    }
+
     response.stream.bytesToString().asStream().listen((event) {
       var parsedJson = json.decode(event);
-      print(parsedJson);
-      print(response.statusCode);
 
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ResultPage(
             image: image!,
-            result: parsedJson['predicted_value'],
+            result: event,
           ),
         ),
       );
     });
-    // final formdata = FormData.fromMap({
-    //   // 'file': await MultipartFile.fromBytes(image!.readAsBytesSync()),
-    //   'file': null,
-    // });
-
-    // dio.postUri(uri, data: formdata).then((result) {
-    //   print(result.runtimeType);
-    //   print('Success send request : $result');
-    //   print('Success send request : ${result.statusCode}');
-    //   // print('Success send request : ${result.body}');
-    //   // Navigator.push(context, ResultPage(image: image, result: result))
-    // }).catchError((error) {
-    //   print('Error send request : $error');
-    // });
   }
 
   @override
