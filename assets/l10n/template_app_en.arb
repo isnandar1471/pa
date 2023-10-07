@@ -1,0 +1,18 @@
+{
+  "language": "Language",
+  "@language": {
+    "description": "The current language"
+  },
+  "semaphoreImageClassificator": "Semaphore Image Classificator",
+  "@semaphoreImageClassificator": {
+    "description": "The application title"
+  },
+  "openCamera": "Open Camera",
+  "@openCamera": {
+    "description": "The Open Camera Button Text"
+  },
+  "sendImage": "Send Image",
+  "@sendImage": {
+    "description": "The Send Image Button Text"
+  }
+}

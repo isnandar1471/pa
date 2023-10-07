@@ -1,147 +1,70 @@
-import 'dart:convert';
-import 'dart:io';
+import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:camera/camera.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:image_picker/image_picker.dart' as img_pick;
-import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
+import 'package:pa/providers/default_t_pvd.dart';
+import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart' as ppvd;
+import 'package:path/path.dart' as p;
 
-import '/helper.dart';
-import '/result_page.dart';
+import '/providers/btm_nav_bar_pvd.dart';
+import '/routes/router.dart';
+import '/l10n/l10n.dart';
 
-final Dio dio = Dio();
+var logger = new Logger();
 
-void main() async {
-  await dotenv.load(fileName: '.env');
+late List<CameraDescription> cameras;
 
-  runApp(const MyApp());
+void main() {
+  dotenv.load();
+
+  WidgetsFlutterBinding.ensureInitialized();
+
+  availableCameras().then((cameraDescs) {
+    cameras = cameraDescs;
+  });
+
+  runApp(MultiProvider(
+    providers: [
+      ChangeNotifierProvider(create: (_) => BtmNavBarIdxPvd()),
+      ChangeNotifierProvider(create: (_) => ServerUrlPvd()),
+    ],
+    child: Main(),
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class Main extends StatelessWidget {
+  const Main({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext ctx) {
+    Timer.periodic(
+      Duration(milliseconds: 500),
+      (timer) {
+        if (dotenv.isInitialized) {
+          ctx.read<ServerUrlPvd>().value = dotenv.get('BASE_API_URL');
+          timer.cancel();
+        }
+      },
+    );
+
+    return MaterialApp.router(
+      routerConfig: router,
       title: 'Semaphore Image Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Semaphore Image Demo'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  File? image;
-
-  Future pickImage() async {
-    try {
-      img_pick.XFile? image = await img_pick.ImagePicker()
-          .pickImage(source: img_pick.ImageSource.camera);
-      if (image == null) return;
-
-      File imageTemporary = File(image.path);
-      this.image = imageTemporary;
-    } on PlatformException catch (e) {
-      print('Failed to pick image: $e');
-    }
-    setState(() {});
-  }
-
-  sendImage() async {
-    if (image == null) {
-      String alert = 'Image is empty';
-      showAlert(context, alert);
-
-      return;
-    }
-
-    var uri = Uri.parse("${dotenv.get('BASE_API_URL')}/semaphores/predict");
-
-    var request = http.MultipartRequest('POST', uri);
-    Uint8List data = image!.readAsBytesSync();
-    List<int> list = data.cast();
-    request.files.add(
-        http.MultipartFile.fromBytes('file', list, filename: 'myFile.png'));
-
-    http.StreamedResponse response;
-    try {
-      response = await request.send();
-    } catch (e) {
-      showAlert(context, e.toString());
-      return;
-    }
-
-    if (response.statusCode != 200) {
-      String alert = await response.stream.bytesToString();
-      showAlert(context, alert);
-      return;
-    }
-
-    response.stream.bytesToString().asStream().listen((event) {
-      var parsedJson = json.decode(event);
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ResultPage(
-            image: image!,
-            result: event,
-          ),
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            image != null
-                ? Image.file(
-                    image!,
-                    width: 200,
-                    // height: 200,
-                    fit: BoxFit.fill,
-                  )
-                : FlutterLogo(
-                    size: 200,
-                  ),
-            ElevatedButton(
-              onPressed: () {
-                print('Button Open Camera clicked');
-                pickImage();
-              },
-              child: Text('Open Camera'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                print('Button Send Image clicked');
-                sendImage();
-              },
-              child: Text('Send Image'),
-            ),
-          ],
-        ),
-      ),
+      supportedLocales: L10n.all,
+      localizationsDelegates: [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
 }

@@ -15,7 +15,7 @@ class ResultPage extends StatefulWidget {
 
 class ResultPageState extends State<ResultPage> {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext ctx) {
     return Scaffold(
       appBar: AppBar(title: Text('Result Page')),
       body: Center(
